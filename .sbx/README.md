@@ -7,7 +7,7 @@ The environment file names the sandbox `ai-job-search` and launches [Claude Code
 | File | Role |
 |------|------|
 | [`sbxenv.yaml`](sbxenv.yaml) | Project environment: sandbox name, agent, workspace (`..` = repo root), kits |
-| [`kit/spec.yaml`](kit/spec.yaml) | Mixin kit applied at sandbox creation (bun install is the first step) |
+| [`kit/spec.yaml`](kit/spec.yaml) | Mixin kit applied at sandbox creation (system packages are installed before Bun and TinyTeX) |
 
 `sbxenv.yaml` lives next to the kit rather than in the repo root so the harness stays in one place. Docker Sandboxes mounts that file read-only inside the sandbox.
 
