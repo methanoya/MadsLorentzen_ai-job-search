@@ -1,0 +1,99 @@
+name: Validate Docker Sandbox environment setup
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - ".sbx/**"
+      - ".github/workflows/sbx.yml"
+  pull_request:
+    paths:
+      - ".sbx/**"
+      - ".github/workflows/sbx.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate .sbx integrity
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SBX_NO_TELEMETRY: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install sbx CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          # REPO_ONLY=1 adds Docker's apt repository - and runs apt-get update -
+          # without installing Docker Engine. This tracks whatever docker-sbx
+          # version the repository currently publishes.
+          curl -fsSL https://get.docker.com | sudo REPO_ONLY=1 sh
+          sudo apt-get install -y docker-sbx
+          # Record the floating version so a CI break is traceable to a release.
+          sbx version
+      - name: Validate sandbox kit
+        # This validates the kit artifact without running its installation commands.
+        # No Docker login, agent credentials, or KVM access are needed.
+        run: sbx kit validate ./.sbx/kit
+      - name: Log in to Docker Hub
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          username: ${{ github.actor }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Log in to Docker Sandboxes
+        # Registry login and the sbx login session are separate.
+        env:
+          DOCKERHUB_USERNAME: ${{ github.actor }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          printf '%s' "$DOCKERHUB_TOKEN" |
+            sbx login --username "$DOCKERHUB_USERNAME" --password-stdin
+      - name: Validate sandbox plan
+        # Planning requires Docker sign-in, but does not create a sandbox
+        # or run the kit's installation commands.
+        run: sbx env plan ./.sbx
+      - name: Sign out of Docker Hub
+        if: always()
+        run: sbx logout --yes || true
+      - name: Enable and report KVM access
+        # Attempt Docker's KVM setup when the device exists; report every outcome.
+        # If the maintainer decide to cleanup setup scripts to support different environments we can go further with the sandbox environment checks here.
+        # Docker's sbx e2e workflow inspects this device when enabling KVM:
+        # https://github.com/docker/sbx-kits-contrib/blob/main/.github/workflows/e2e.yml
+        if: always()
+        continue-on-error: true
+        shell: bash
+        run: |
+          if [[ -c /dev/kvm ]]; then
+            echo "KVM character device found:"
+            if sudo -n chmod 666 /dev/kvm; then
+              echo "Set /dev/kvm permissions to 666."
+            else
+              echo "Could not change /dev/kvm permissions; continuing."
+            fi
+            ls -la /dev/kvm || echo "Could not list /dev/kvm permissions; continuing."
+            if [[ -r /dev/kvm && -w /dev/kvm ]] && (exec 3<>/dev/kvm); then
+              echo "KVM access enabled: the runner user can open /dev/kvm for read/write."
+            else
+              echo "KVM access unavailable: the runner user cannot open /dev/kvm for read/write; continuing."
+            fi
+            # Match the AppArmor adjustment in Docker's official sbx workflow.
+            if sudo -n sysctl -w kernel.apparmor_restrict_unprivileged_userns=0; then
+              echo "Applied the AppArmor user namespace setting."
+            else
+              echo "Could not apply the AppArmor user namespace setting; continuing."
+            fi
+            if [[ "$(sysctl -n kernel.apparmor_restrict_unprivileged_userns 2>/dev/null)" == "0" ]]; then
+              echo "Confirmed: kernel.apparmor_restrict_unprivileged_userns=0."
+            else
+              echo "Could not confirm the AppArmor user namespace restriction is disabled; continuing."
+            fi
+          else
+            echo "No KVM character device found at /dev/kvm; continuing."
+          fi
