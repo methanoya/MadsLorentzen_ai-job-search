@@ -2,7 +2,7 @@ name: Validate sandbox kit
 
 on:
   push:
-    branches: [master]
+    branches: [master, GitHub-Actions]
     paths:
       - ".sbx/**"
       - ".github/workflows/sbx.yml"
