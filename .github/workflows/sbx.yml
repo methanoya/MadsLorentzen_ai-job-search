@@ -58,3 +58,22 @@ jobs:
         # Planning requires Docker sign-in, but does not create a sandbox
         # or run the kit's installation commands.
         run: sbx env plan ./.sbx
+      - name: Report KVM availability
+        # Just report the availability and access permissions of the KVM device.
+        # If the maintainer decide to cleanup setup scripts to support different environments we can go further with the sandbox environment checks here.
+        # Docker's sbx e2e workflow inspects this device when enabling KVM:
+        # https://github.com/docker/sbx-kits-contrib/blob/main/.github/workflows/e2e.yml
+        continue-on-error: true
+        shell: bash
+        run: |
+          if [[ -c /dev/kvm ]]; then
+            echo "KVM character device found:"
+            ls -la /dev/kvm
+            if [[ -r /dev/kvm && -w /dev/kvm ]]; then
+              echo "The runner user has read/write access to /dev/kvm."
+            else
+              echo "The runner user lacks read/write access to /dev/kvm; continuing."
+            fi
+          else
+            echo "No KVM character device found at /dev/kvm; continuing."
+          fi
