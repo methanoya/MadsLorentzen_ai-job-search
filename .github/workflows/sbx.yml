@@ -1,0 +1,48 @@
+name: Validate sandbox kit
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - ".sbx/**"
+      - ".github/workflows/sbx.yml"
+  pull_request:
+    paths:
+      - ".sbx/**"
+      - ".github/workflows/sbx.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate .sbx/kit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      SBX_VERSION: v0.42.1
+      SBX_NO_TELEMETRY: "1"
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+      - name: Install sbx CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          # REPO_ONLY=1 adds Docker's apt repository - and runs apt-get update -
+          # without installing Docker Engine. This tracks whatever docker-sbx
+          # version the repository currently publishes.
+          curl -fsSL https://get.docker.com | sudo REPO_ONLY=1 sh
+          sudo apt-get install -y docker-sbx
+          # Record the floating version so a CI break is traceable to a release.
+          sbx version
+      - name: Validate sandbox kit
+        # This validates the kit artifact without running its installation commands.
+        # No Docker login, agent credentials, or KVM access are needed.
+        run: sbx kit validate ./.sbx/kit
+      - name: Validate sandbox plan
+        # This validates the plan without running its installation commands.
+        # No Docker login, agent credentials, or KVM access are needed.
+        run: sbx env plan ./.sbx
