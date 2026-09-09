@@ -59,7 +59,6 @@ jobs:
       - name: Enable and report KVM access
         id: kvm
         # Attempt Docker's KVM setup when the device exists; report every outcome.
-        # If the maintainer decide to cleanup setup scripts to support different environments we can go further with the sandbox environment checks here.
         # Docker's sbx e2e workflow inspects this device when enabling KVM:
         # https://github.com/docker/sbx-kits-contrib/blob/main/.github/workflows/e2e.yml
         if: always()
@@ -107,6 +106,25 @@ jobs:
         shell: bash
         run: |
           sbx env create --auto-approve ./.sbx
+      - name: Check sandbox tools
+        if: ${{ steps.create.outcome == 'success' }}
+        # It is a very naive check
+        # If the maintainer decide to cleanup setup scripts to support different environments we can go further with the sandbox environment checks here.
+        # exec does not start a login shell; wrap in bash so
+        # /etc/sandbox-persistent.sh puts bun and TinyTeX on PATH.
+        run: |
+          sbx env exec ./.sbx -- bash -c '
+            set -euo pipefail
+            bun --version
+            tlmgr --version
+            command -v pdftotext
+            command -v pdfinfo
+            python3 -c "import pypdf"
+            xz --version
+            command -v xelatex
+            command -v lualatex
+            kpsewhich moderncv.cls
+          '
       - name: Remove sandbox environment
         if: ${{ steps.create.outcome != 'skipped' }}
         shell: bash
