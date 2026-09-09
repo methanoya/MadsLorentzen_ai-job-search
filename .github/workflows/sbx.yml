@@ -18,7 +18,7 @@ permissions:
 jobs:
   validate:
     name: Validate .sbx integrity
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
       SBX_NO_TELEMETRY: "1"
@@ -58,21 +58,41 @@ jobs:
         # Planning requires Docker sign-in, but does not create a sandbox
         # or run the kit's installation commands.
         run: sbx env plan ./.sbx
-      - name: Report KVM availability
-        # Just report the availability and access permissions of the KVM device.
+      - name: Sign out of Docker Hub
+        if: always()
+        run: sbx logout --yes || true
+      - name: Enable and report KVM access
+        # Attempt Docker's KVM setup when the device exists; report every outcome.
         # If the maintainer decide to cleanup setup scripts to support different environments we can go further with the sandbox environment checks here.
         # Docker's sbx e2e workflow inspects this device when enabling KVM:
         # https://github.com/docker/sbx-kits-contrib/blob/main/.github/workflows/e2e.yml
+        if: always()
         continue-on-error: true
         shell: bash
         run: |
           if [[ -c /dev/kvm ]]; then
             echo "KVM character device found:"
-            ls -la /dev/kvm
-            if [[ -r /dev/kvm && -w /dev/kvm ]]; then
-              echo "The runner user has read/write access to /dev/kvm."
+            if sudo -n chmod 666 /dev/kvm; then
+              echo "Set /dev/kvm permissions to 666."
             else
-              echo "The runner user lacks read/write access to /dev/kvm; continuing."
+              echo "Could not change /dev/kvm permissions; continuing."
+            fi
+            ls -la /dev/kvm || echo "Could not list /dev/kvm permissions; continuing."
+            if [[ -r /dev/kvm && -w /dev/kvm ]] && (exec 3<>/dev/kvm); then
+              echo "KVM access enabled: the runner user can open /dev/kvm for read/write."
+            else
+              echo "KVM access unavailable: the runner user cannot open /dev/kvm for read/write; continuing."
+            fi
+            # Match the AppArmor adjustment in Docker's official sbx workflow.
+            if sudo -n sysctl -w kernel.apparmor_restrict_unprivileged_userns=0; then
+              echo "Applied the AppArmor user namespace setting."
+            else
+              echo "Could not apply the AppArmor user namespace setting; continuing."
+            fi
+            if [[ "$(sysctl -n kernel.apparmor_restrict_unprivileged_userns 2>/dev/null)" == "0" ]]; then
+              echo "Confirmed: kernel.apparmor_restrict_unprivileged_userns=0."
+            else
+              echo "Could not confirm the AppArmor user namespace restriction is disabled; continuing."
             fi
           else
             echo "No KVM character device found at /dev/kvm; continuing."
