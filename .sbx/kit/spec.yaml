@@ -31,7 +31,7 @@ setup:
       description: Put bun and TinyTeX on PATH for every shell
     - command: |
         mkdir -p "$HOME/.local/bin"
-        curl -sL "https://tinytex.yihui.org/install-bin-unix.sh" | sh
+        curl -fsSL "https://tinytex.yihui.org/install-bin-unix.sh" | sh
       user: "1000"
       description: Install TinyTeX
     - command: |
