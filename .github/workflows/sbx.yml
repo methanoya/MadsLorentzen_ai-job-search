@@ -102,24 +102,12 @@ jobs:
         if: ${{ steps.kvm.outputs.ready == 'true' }}
         shell: bash
         run: |
-          # Bound creation so a hung install leaves time for cleanup.
-          if sbx env create --auto-approve ./.sbx; then
-            echo "Sandbox environment created successfully."
-          else
-            create_status=$?
-            echo "Sandbox environment creation failed or timed out (exit code ${create_status}); continuing."
-          fi
+          sbx env create --auto-approve ./.sbx
       - name: Remove sandbox environment
         if: ${{ steps.kvm.outputs.ready == 'true' }}
         shell: bash
         run: |
-          # Also clean up resources left behind by an unsuccessful create.
-          if sbx env rm --force ./.sbx; then
-            echo "Sandbox environment cleanup completed."
-          else
-            cleanup_status=$?
-            echo "Sandbox environment cleanup failed or timed out (exit code ${cleanup_status}); continuing."
-          fi
+          sbx env rm --force ./.sbx
       - name: Sign out of Docker Hub
         continue-on-error: true
         if: always()
