@@ -2,7 +2,7 @@ name: Validate Docker Sandbox environment setup
 
 on:
   push:
-    branches: [master, GitHub-Actions]
+    branches: [master]
     paths:
       - ".sbx/**"
       - ".github/workflows/sbx.yml"
