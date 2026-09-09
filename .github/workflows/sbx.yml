@@ -98,6 +98,11 @@ jobs:
             echo "No KVM character device found at /dev/kvm; continuing."
           fi
           echo "ready=${kvm_ready}" >> "$GITHUB_OUTPUT"
+      - name: Initialize sandbox network policy
+        if: ${{ steps.kvm.outputs.ready == 'true' }}
+        # Match Docker's e2e baseline; kit allow rules grant outbound access.
+        # https://github.com/docker/sbx-kits-contrib/blob/main/scripts/test-kit-e2e.sh
+        run: sbx policy init deny-all
       - name: Create sandbox environment
         if: ${{ steps.kvm.outputs.ready == 'true' }}
         shell: bash
